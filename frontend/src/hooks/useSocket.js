@@ -14,7 +14,11 @@ export const useSocket = (roomId, user) => {
     socketRef.current.emit('join-room', { roomId, user });
 
     socketRef.current.on('room-state', (state) => {
-      setRoomState(state);
+      const transformedUsers = {};
+      Object.values(state.users || {}).forEach((u) => {
+        transformedUsers[u.id] = u;
+      });
+      setRoomState({ ...state, users: transformedUsers });
     });
 
     socketRef.current.on('draw-stroke', (stroke) => {

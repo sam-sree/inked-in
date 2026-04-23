@@ -60,8 +60,11 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (!roomId) return;
     
+    const room = rooms.get(roomId);
+    if (!room || !room.users[socket.id]) return;
+
     socket.to(roomId).emit('cursor-move', {
-      userId: socket.id,
+      userId: room.users[socket.id].id,
       position
     });
   });
@@ -104,8 +107,11 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (roomId && rooms.has(roomId)) {
       const room = rooms.get(roomId);
-      delete room.users[socket.id];
-      socket.to(roomId).emit('user-left', socket.id);
+      const userObj = room.users[socket.id];
+      if (userObj) {
+        delete room.users[socket.id];
+        socket.to(roomId).emit('user-left', userObj.id);
+      }
       
       if (Object.keys(room.users).length === 0) {
         // Optional: clean up empty rooms after some time, 

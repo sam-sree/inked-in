@@ -25,9 +25,40 @@ const generateUserId = () => {
   return id;
 };
 
+const getOrGenerateRoomInfo = () => {
+  const params = new URLSearchParams(window.location.search);
+  let room = params.get('room');
+  let isHost = false;
+  if (!room) {
+    room = uuidv4().slice(0, 8);
+    window.history.replaceState({}, '', `?room=${room}`);
+    isHost = true;
+  }
+  return { roomId: room, isHost };
+};
+
+const getOrGenerateUserName = (roomId, isHost) => {
+  let storedName = localStorage.getItem(`inkedin-userName-${roomId}`);
+  if (!storedName) {
+    if (isHost) {
+      storedName = "Host";
+    } else {
+      storedName = prompt('Welcome to InkedIn! Enter your name:') || `Guest-${roomId.slice(0,4)}`;
+    }
+    if (storedName) {
+      localStorage.setItem(`inkedin-userName-${roomId}`, storedName);
+    }
+  }
+  return storedName;
+};
+
 function App() {
-  const [userId] = useState(generateUserId());
-  const [userName, setUserName] = useState('');
+  const [roomInfo] = useState(getOrGenerateRoomInfo);
+  const roomId = roomInfo.roomId;
+  const isHost = roomInfo.isHost;
+  
+  const [userId] = useState(generateUserId);
+  const [userName] = useState(() => getOrGenerateUserName(roomId, isHost));
   
   // Settings state
   const [activeColor, setActiveColor] = useState('#fafafa'); // start white/black depending on theme
@@ -35,26 +66,7 @@ function App() {
   const [isEraser, setIsEraser] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
-  // Room
-  const [roomId, setRoomId] = useState('');
-
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    let room = params.get('room');
-    if (!room) {
-      room = uuidv4().slice(0, 8); // simple room id
-      window.history.pushState({}, '', `?room=${room}`);
-    }
-    setRoomId(room);
-
-    // Prompt for Name loop to ensure it's not empty
-    let storedName = localStorage.getItem('inkedin-userName');
-    if (!storedName) {
-      storedName = prompt('Welcome to InkedIn! Enter your name:') || `User-${room.slice(0,4)}`;
-      localStorage.setItem('inkedin-userName', storedName);
-    }
-    setUserName(storedName);
-    
     // Theme sync
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setIsDarkMode(isDark);
