@@ -11,7 +11,9 @@ export const useSocket = (roomId, user) => {
   const [remoteCursors, setRemoteCursors] = useState({});
 
   useEffect(() => {
-    socketRef.current = io(SOCKET_SERVER_URL);
+    socketRef.current = io(SOCKET_SERVER_URL, {
+      transports: ['websocket'],
+    });
 
     socketRef.current.emit('join-room', { roomId, user });
 
