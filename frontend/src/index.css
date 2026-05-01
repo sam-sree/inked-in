@@ -5,6 +5,7 @@
 @layer base {
   body {
     @apply bg-zinc-50 text-slate-900 dark:bg-zinc-950 dark:text-slate-100 transition-colors duration-300 overflow-hidden cursor-crosshair;
+    touch-action: none;
   }
 }
 
