@@ -126,8 +126,7 @@ io.on('connection', (socket) => {
 });
 
 // Serve frontend static files
-const rootDir = process.cwd();
-const frontendPath = path.join(rootDir, 'frontend', 'dist');
+const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
 
 console.log(`Frontend path resolved to: ${frontendPath}`);
 
