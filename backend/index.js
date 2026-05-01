@@ -126,14 +126,23 @@ io.on('connection', (socket) => {
 });
 
 // Serve frontend static files
-const frontendPath = path.join(__dirname, '../frontend/dist');
+const rootDir = process.cwd();
+const frontendPath = path.join(rootDir, 'frontend', 'dist');
+
+console.log(`Frontend path resolved to: ${frontendPath}`);
+
 app.use(express.static(frontendPath));
+
+// Health check
+app.get('/health', (req, res) => {
+  res.send('Backend is healthy');
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend server running on port ${PORT}`);
 });
