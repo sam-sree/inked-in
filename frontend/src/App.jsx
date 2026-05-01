@@ -37,19 +37,8 @@ const getOrGenerateRoomInfo = () => {
   return { roomId: room, isHost };
 };
 
-const getOrGenerateUserName = (roomId, isHost) => {
-  let storedName = localStorage.getItem(`inkedin-userName-${roomId}`);
-  if (!storedName) {
-    if (isHost) {
-      storedName = "Host";
-    } else {
-      storedName = prompt('Welcome to InkedIn! Enter your name:') || `Guest-${roomId.slice(0,4)}`;
-    }
-    if (storedName) {
-      localStorage.setItem(`inkedin-userName-${roomId}`, storedName);
-    }
-  }
-  return storedName;
+const getOrGenerateUserName = (roomId) => {
+  return localStorage.getItem(`inkedin-userName-${roomId}`) || '';
 };
 
 function App() {
@@ -58,7 +47,17 @@ function App() {
   const isHost = roomInfo.isHost;
   
   const [userId] = useState(generateUserId);
-  const [userName] = useState(() => getOrGenerateUserName(roomId, isHost));
+  const [userName, setUserName] = useState(() => getOrGenerateUserName(roomId));
+  const [showJoinScreen, setShowJoinScreen] = useState(!userName && !isHost);
+  
+  // Set default name for host if not set
+  useEffect(() => {
+    if (isHost && !userName) {
+      const name = "Host";
+      setUserName(name);
+      localStorage.setItem(`inkedin-userName-${roomId}`, name);
+    }
+  }, [isHost, roomId, userName]);
   
   // Settings state
   const [activeColor, setActiveColor] = useState('#fafafa'); // start white/black depending on theme
@@ -123,10 +122,42 @@ function App() {
     }
   };
 
-  if (!roomId || !userName) return null;
+  if (!roomId) return null;
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
+      {/* Join Screen Overlay */}
+      {showJoinScreen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md px-4">
+          <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl border border-white/10 w-full max-w-md animate-in fade-in zoom-in duration-300">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome to InkedIn</h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-6">Enter your name to join the collaborative board.</p>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const name = e.target.name.value.trim() || `Guest-${roomId.slice(0,4)}`;
+              setUserName(name);
+              localStorage.setItem(`inkedin-userName-${roomId}`, name);
+              setShowJoinScreen(false);
+            }}>
+              <input
+                autoFocus
+                name="name"
+                type="text"
+                placeholder="Your name..."
+                className="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white mb-4 outline-none transition-all"
+              />
+              <button
+                type="submit"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]"
+              >
+                Join Board
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <Canvas
         strokes={roomState.strokes}
         onStrokeEnd={drawStroke}
