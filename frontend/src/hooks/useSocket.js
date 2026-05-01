@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_SERVER_URL = 'http://localhost:3001';
+const SOCKET_SERVER_URL = import.meta.env.PROD 
+  ? window.location.origin 
+  : 'http://localhost:3001';
 
 export const useSocket = (roomId, user) => {
   const socketRef = useRef();
