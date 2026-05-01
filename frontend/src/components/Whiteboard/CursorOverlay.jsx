@@ -10,7 +10,7 @@ export function CursorOverlay({ remoteCursors, users }) {
         return (
           <div
             key={userId}
-            className="absolute top-0 left-0 transition-transform duration-75 ease-out flex flex-col items-center"
+            className="absolute top-0 left-0 transition-transform duration-75 ease-out flex flex-row items-start"
             style={{
               transform: `translate(${position.x}px, ${position.y}px)`,
             }}
@@ -36,8 +36,8 @@ export function CursorOverlay({ remoteCursors, users }) {
 
             {/* Label */}
             <div 
-              className="mt-1 px-2 py-0.5 rounded-full text-[10px] text-white font-medium shadow-md whitespace-nowrap backdrop-blur-sm"
-              style={{ backgroundColor: `${user.color}dd` }}
+              className="ml-1 px-2 py-0.5 rounded-lg text-[12px] text-white font-bold shadow-xl whitespace-nowrap backdrop-blur-md border border-white/20 mt-3"
+              style={{ backgroundColor: `${user.color}` }}
             >
               {user.name}
             </div>
