@@ -60,7 +60,8 @@ function App() {
 
   const userConfig = { id: userId, name: userName, color: stringToColor(userId + userName) };
 
-  const { roomState, remoteCursors, drawStroke, moveCursor, undo, clearCanvas } = useSocket(roomId || 'default', userConfig);
+  const { roomState, remoteCursors, drawingUsers, drawStroke, moveCursor, setDrawingStatus, undo, clearCanvas } = useSocket(roomId || 'default', userConfig);
+  const [showUsersPopup, setShowUsersPopup] = useState(false);
 
   const [viewMatrix, setViewMatrix] = useState({ x: 0, y: 0, scale: 1 });
   const viewMatrixRef = useRef(viewMatrix);
@@ -218,6 +219,7 @@ function App() {
       <Canvas
         strokes={roomState.strokes}
         onStrokeEnd={drawStroke}
+        onDrawingChange={setDrawingStatus}
         activeColor={activeColor}
         brushSize={brushSize}
         isEraser={isEraser}
@@ -271,16 +273,64 @@ function App() {
         <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)' }} />
 
         {/* Online indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <div style={{
-            width: '7px', height: '7px', borderRadius: '50%',
-            background: '#22c55e',
-            boxShadow: '0 0 6px rgba(34,197,94,0.7)',
-            flexShrink: 0,
-          }} />
-          <span style={{ fontSize: '0.75rem', color: 'rgba(180,180,200,0.75)', fontWeight: 500 }}>
-            {onlineCount === 1 ? 'just you' : `${onlineCount} online`}
-          </span>
+        <div style={{ position: 'relative' }}>
+          <button 
+            onClick={() => setShowUsersPopup(p => !p)}
+            style={{ 
+              display: 'flex', alignItems: 'center', gap: '5px',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              padding: '2px 4px', borderRadius: '4px'
+            }}
+          >
+            <div style={{
+              width: '7px', height: '7px', borderRadius: '50%',
+              background: '#22c55e',
+              boxShadow: '0 0 6px rgba(34,197,94,0.7)',
+              flexShrink: 0,
+            }} />
+            <span style={{ fontSize: '0.75rem', color: 'rgba(180,180,200,0.75)', fontWeight: 500 }}>
+              {onlineCount === 1 ? 'just you' : `${onlineCount} online`}
+            </span>
+          </button>
+
+          {/* Users Popup */}
+          {showUsersPopup && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              marginTop: '12px',
+              background: 'rgba(20,20,30,0.95)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '12px',
+              padding: '8px 0',
+              minWidth: '160px',
+              backdropFilter: 'blur(16px)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              zIndex: 100,
+            }}>
+              {Object.values(roomState.users || {}).map(u => (
+                <div key={u.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '6px 16px',
+                }}>
+                  <div style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: u.color,
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: '0.75rem', color: '#e8e8f0', fontWeight: 500, flex: 1 }}>
+                    {u.name} {u.id === userId && '(you)'}
+                  </span>
+                  {drawingUsers[u.id] && (
+                    <span style={{ fontSize: '0.65rem', color: '#a5b4fc', fontStyle: 'italic', opacity: 0.8 }}>
+                      drawing...
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Copy link button */}

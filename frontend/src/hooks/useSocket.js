@@ -10,6 +10,7 @@ export const useSocket = (roomId, user) => {
   const [roomState, setRoomState] = useState({ strokes: [], users: {} });
   const userRef = useRef(user);
   const [remoteCursors, setRemoteCursors] = useState({});
+  const [drawingUsers, setDrawingUsers] = useState({});
 
   useEffect(() => {
     socketRef.current = io(SOCKET_SERVER_URL, {
@@ -60,6 +61,13 @@ export const useSocket = (roomId, user) => {
       setRoomState((prev) => ({ ...prev, strokes: strokes ?? prev.strokes.slice(0, -1) }));
     });
 
+    socketRef.current.on('user-drawing', ({ userId, isDrawing }) => {
+      setDrawingUsers((prev) => ({
+        ...prev,
+        [userId]: isDrawing,
+      }));
+    });
+
     socketRef.current.on('user-left', (userId) => {
       setRoomState((prev) => {
         const newUsers = { ...prev.users };
@@ -90,6 +98,15 @@ export const useSocket = (roomId, user) => {
     socketRef.current?.emit('cursor-move', position);
   }, []);
 
+  const setDrawingStatus = useCallback((isDrawing) => {
+    socketRef.current?.emit('user-drawing', isDrawing);
+    // Optimistically update local user's drawing status
+    setDrawingUsers((prev) => ({
+      ...prev,
+      [userRef.current.id]: isDrawing,
+    }));
+  }, []);
+
   const undo = useCallback(() => {
     socketRef.current?.emit('undo');
   }, []);
@@ -103,8 +120,10 @@ export const useSocket = (roomId, user) => {
     socket: socketRef.current,
     roomState,
     remoteCursors,
+    drawingUsers,
     drawStroke,
     moveCursor,
+    setDrawingStatus,
     undo,
     clearCanvas,
   };

@@ -74,6 +74,19 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('user-drawing', (isDrawing) => {
+    const roomId = socket.roomId;
+    if (!roomId) return;
+    
+    const room = rooms.get(roomId);
+    if (!room || !room.users[socket.id]) return;
+
+    socket.to(roomId).emit('user-drawing', {
+      userId: room.users[socket.id].id,
+      isDrawing
+    });
+  });
+
   socket.on('undo', () => {
     const roomId = socket.roomId;
     if (!roomId) return;

@@ -4,6 +4,7 @@ import { drawStroke } from '../../utils/drawing';
 export function Canvas({
   strokes,
   onStrokeEnd,
+  onDrawingChange,
   activeColor,
   brushSize,
   isEraser,
@@ -136,6 +137,8 @@ export function Canvas({
     if (e.button !== 0) return;
 
     isDrawingRef.current = true;
+    if (onDrawingChange) onDrawingChange(true);
+
     const worldPos = screenToWorld(e.clientX, e.clientY);
     
     const point = { x: worldPos.x, y: worldPos.y, pressure: e.pressure || 0.5 };
@@ -174,6 +177,7 @@ export function Canvas({
 
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
+    if (onDrawingChange) onDrawingChange(false);
     
     if (currentStrokeRef.current.length > 0) {
       const strokeData = {
