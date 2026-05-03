@@ -1,27 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Canvas } from './components/Whiteboard/Canvas';
 import { FloatingToolbar } from './components/Toolbar/FloatingToolbar';
 import { CursorOverlay } from './components/Whiteboard/CursorOverlay';
 import { useSocket } from './hooks/useSocket';
+import { Link2 } from 'lucide-react';
 
 // Generate distinct color for user cursor
 const stringToColor = (str) => {
+  const palette = ['#818cf8','#c084fc','#38bdf8','#34d399','#fb923c','#f472b6','#a3e635','#fbbf24'];
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-  return '#' + '00000'.substring(0, 6 - c.length) + c;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return palette[Math.abs(hash) % palette.length];
 };
 
-// Simple ID setup
 const generateUserId = () => {
   let id = localStorage.getItem('inkedin-userId');
-  if (!id) {
-    id = uuidv4();
-    localStorage.setItem('inkedin-userId', id);
-  }
+  if (!id) { id = uuidv4(); localStorage.setItem('inkedin-userId', id); }
   return id;
 };
 
@@ -29,113 +24,171 @@ const getOrGenerateRoomInfo = () => {
   const params = new URLSearchParams(window.location.search);
   let room = params.get('room');
   let isHost = false;
-  if (!room) {
-    room = uuidv4().slice(0, 8);
-    window.history.replaceState({}, '', `?room=${room}`);
-    isHost = true;
-  }
+  if (!room) { room = uuidv4().slice(0, 8); window.history.replaceState({}, '', `?room=${room}`); isHost = true; }
   return { roomId: room, isHost };
 };
 
-const getOrGenerateUserName = (roomId) => {
-  return localStorage.getItem(`inkedin-userName-${roomId}`) || '';
-};
+const getOrGenerateUserName = (roomId) => localStorage.getItem(`inkedin-userName-${roomId}`) || '';
 
 function App() {
   const [roomInfo] = useState(getOrGenerateRoomInfo);
-  const roomId = roomInfo.roomId;
-  const isHost = roomInfo.isHost;
-  
+  const { roomId, isHost } = roomInfo;
+
   const [userId] = useState(generateUserId);
   const [userName, setUserName] = useState(() => getOrGenerateUserName(roomId));
   const [showJoinScreen, setShowJoinScreen] = useState(!userName && !isHost);
-  
-  // Set default name for host if not set
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     if (isHost && !userName) {
-      const name = "Host";
+      const name = 'Host';
       setUserName(name);
       localStorage.setItem(`inkedin-userName-${roomId}`, name);
     }
   }, [isHost, roomId, userName]);
-  
-  // Settings state
-  const [activeColor, setActiveColor] = useState('#fafafa'); // start white/black depending on theme
+
+  const [activeColor, setActiveColor] = useState('#fafafa');
   const [brushSize, setBrushSize] = useState(8);
   const [isEraser, setIsEraser] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
-    // Theme sync
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setIsDarkMode(isDark);
     if (!isDark) setActiveColor('#09090b');
   }, []);
 
-  const userConfig = {
-    id: userId,
-    name: userName,
-    color: stringToColor(userId + userName)
-  };
+  const userConfig = { id: userId, name: userName, color: stringToColor(userId + userName) };
 
-  const {
-    roomState,
-    remoteCursors,
-    drawStroke,
-    moveCursor,
-    undo,
-    clearCanvas
-  } = useSocket(roomId || 'default', userConfig);
+  const { roomState, remoteCursors, drawStroke, moveCursor, undo, clearCanvas } = useSocket(roomId || 'default', userConfig);
+
+  const [viewMatrix, setViewMatrix] = useState({ x: 0, y: 0, scale: 1 });
+  const viewMatrixRef = useRef(viewMatrix);
+  useEffect(() => { viewMatrixRef.current = viewMatrix; }, [viewMatrix]);
+
+  // Window-level cursor tracking (works even over toolbar/badges)
+  useEffect(() => {
+    let rafId = null;
+    const handleMove = (e) => {
+      // Extract properties immediately since native events might mutate
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+      
+      if (rafId) return; // throttle via RAF
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const vm = viewMatrixRef.current;
+        const worldPos = {
+          x: (clientX - vm.x) / vm.scale,
+          y: (clientY - vm.y) / vm.scale,
+        };
+        moveCursor(worldPos);
+      });
+    };
+    window.addEventListener('pointermove', handleMove);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [moveCursor]);
 
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
+      document.body.style.background = '#08080c';
       if (activeColor === '#09090b') setActiveColor('#fafafa');
     } else {
       document.documentElement.classList.remove('dark');
+      document.body.style.background = '#f4f4f8';
       if (activeColor === '#fafafa') setActiveColor('#09090b');
     }
   }, [isDarkMode]);
 
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
+  const toggleDarkMode = () => setIsDarkMode(d => !d);
 
   const handleExport = () => {
     const canvas = document.querySelector('canvas');
-    if (canvas) {
-      // Create a temporary canvas to draw the background
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-      const ctx = tempCanvas.getContext('2d');
-      
-      // Fill background
-      ctx.fillStyle = isDarkMode ? '#09090b' : '#fafafa';
-      ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-      
-      // Draw original canvas on top
-      ctx.drawImage(canvas, 0, 0);
-
-      const link = document.createElement('a');
-      link.download = `InkedIn-${roomId}.png`;
-      link.href = tempCanvas.toDataURL('image/png');
-      link.click();
-    }
+    if (!canvas) return;
+    const temp = document.createElement('canvas');
+    temp.width = canvas.width;
+    temp.height = canvas.height;
+    const ctx = temp.getContext('2d');
+    ctx.fillStyle = isDarkMode ? '#08080c' : '#f4f4f8';
+    ctx.fillRect(0, 0, temp.width, temp.height);
+    ctx.drawImage(canvas, 0, 0);
+    const link = document.createElement('a');
+    link.download = `InkedIn-${roomId}.png`;
+    link.href = temp.toDataURL('image/png');
+    link.click();
   };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const onlineCount = Math.max(1, Object.keys(roomState.users || {}).length);
 
   if (!roomId) return null;
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden">
-      {/* Join Screen Overlay */}
+    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+
+      {/* ── Join Screen Overlay ── */}
       {showJoinScreen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md px-4">
-          <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl border border-white/10 w-full max-w-md animate-in fade-in zoom-in duration-300">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome to InkedIn</h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-6">Enter your name to join the collaborative board.</p>
-            
+        <div className="join-modal-overlay">
+          <div className="join-modal">
+            {/* Decorative orbs */}
+            <div style={{
+              position: 'absolute', top: '-60px', right: '-40px',
+              width: '180px', height: '180px', borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)',
+              animation: 'orbFloat 6s ease-in-out infinite',
+              pointerEvents: 'none',
+            }} />
+            <div style={{
+              position: 'absolute', bottom: '-40px', left: '-30px',
+              width: '140px', height: '140px', borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)',
+              animation: 'orbFloat 8s ease-in-out infinite reverse',
+              pointerEvents: 'none',
+            }} />
+
+            {/* Logo mark */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.75rem' }}>
+              <div style={{
+                width: '38px', height: '38px', borderRadius: '10px',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 16px rgba(99,102,241,0.4)',
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
+                    stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div>
+                <h1 className="font-display" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#e8e8f0', letterSpacing: '-0.01em' }}>
+                  InkedIn
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.7rem', color: 'rgba(133,133,168,0.8)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500 }}>
+                  Collaborative Board
+                </p>
+              </div>
+            </div>
+
+            <h2 style={{ margin: '0 0 0.375rem', fontSize: '1.5rem', fontWeight: 700, color: '#e8e8f0', letterSpacing: '-0.02em', fontFamily: "'Space Grotesk', sans-serif" }}>
+              Join the board
+            </h2>
+            <p style={{ margin: '0 0 1.75rem', fontSize: '0.875rem', color: 'rgba(133,133,168,0.9)', lineHeight: 1.6 }}>
+              Enter your name to start drawing with others in real time.
+            </p>
+
             <form onSubmit={(e) => {
               e.preventDefault();
-              const name = e.target.name.value.trim() || `Guest-${roomId.slice(0,4)}`;
+              const name = e.target.name.value.trim() || `Guest-${roomId.slice(0, 4)}`;
               setUserName(name);
               localStorage.setItem(`inkedin-userName-${roomId}`, name);
               setShowJoinScreen(false);
@@ -144,44 +197,117 @@ function App() {
                 autoFocus
                 name="name"
                 type="text"
-                placeholder="Your name..."
-                className="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white mb-4 outline-none transition-all"
+                placeholder="Your name…"
+                maxLength={24}
+                className="join-input"
+                style={{ marginBottom: '0.875rem', display: 'block' }}
               />
-              <button
-                type="submit"
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]"
-              >
-                Join Board
+              <button type="submit" className="join-btn">
+                Enter Board →
               </button>
             </form>
+
+            <p style={{ margin: '1.25rem 0 0', textAlign: 'center', fontSize: '0.75rem', color: 'rgba(99,99,130,0.7)' }}>
+              Room <code style={{ background: 'rgba(255,255,255,0.05)', padding: '1px 6px', borderRadius: '4px', fontSize: '0.7rem', letterSpacing: '0.05em' }}>{roomId}</code>
+            </p>
           </div>
         </div>
       )}
 
+      {/* ── Canvas Layers ── */}
       <Canvas
         strokes={roomState.strokes}
         onStrokeEnd={drawStroke}
-        onCursorMove={moveCursor}
         activeColor={activeColor}
         brushSize={brushSize}
         isEraser={isEraser}
         isDarkMode={isDarkMode}
         userId={userId}
+        viewMatrix={viewMatrix}
+        setViewMatrix={setViewMatrix}
       />
-      <CursorOverlay remoteCursors={remoteCursors} users={roomState.users} />
+
+      <CursorOverlay remoteCursors={remoteCursors} users={roomState.users} viewMatrix={viewMatrix} />
+
+      {/* ── Toolbar ── */}
       <FloatingToolbar
-        activeColor={activeColor}
-        setActiveColor={setActiveColor}
-        brushSize={brushSize}
-        setBrushSize={setBrushSize}
-        isEraser={isEraser}
-        setIsEraser={setIsEraser}
-        onUndo={undo}
-        onClear={clearCanvas}
+        activeColor={activeColor} setActiveColor={setActiveColor}
+        brushSize={brushSize} setBrushSize={setBrushSize}
+        isEraser={isEraser} setIsEraser={setIsEraser}
+        onUndo={undo} onClear={clearCanvas}
         onExport={handleExport}
-        isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
+        isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode}
       />
+
+      {/* ── Top-left Room Badge ── */}
+      <div style={{
+        position: 'fixed', top: '1.25rem', left: '1.25rem', zIndex: 50,
+        display: 'flex', alignItems: 'center', gap: '10px',
+        padding: '0.5rem 0.875rem',
+        borderRadius: '14px',
+        background: 'rgba(13,13,22,0.82)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        backdropFilter: 'blur(20px)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+      }}>
+        {/* Logo mark mini */}
+        <div style={{
+          width: '24px', height: '24px', borderRadius: '6px',
+          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+          boxShadow: '0 2px 8px rgba(99,102,241,0.4)',
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
+              stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+
+        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#c4c4d8', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.01em' }}>
+          InkedIn
+        </span>
+
+        <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)' }} />
+
+        {/* Online indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <div style={{
+            width: '7px', height: '7px', borderRadius: '50%',
+            background: '#22c55e',
+            boxShadow: '0 0 6px rgba(34,197,94,0.7)',
+            flexShrink: 0,
+          }} />
+          <span style={{ fontSize: '0.75rem', color: 'rgba(180,180,200,0.75)', fontWeight: 500 }}>
+            {onlineCount === 1 ? 'just you' : `${onlineCount} online`}
+          </span>
+        </div>
+
+        {/* Copy link button */}
+        <button
+          onClick={handleCopyLink}
+          title="Copy invite link"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '4px',
+            padding: '3px 8px', borderRadius: '8px',
+            background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.12)',
+            border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.25)'}`,
+            color: copied ? '#86efac' : '#a5b4fc',
+            fontSize: '0.72rem', fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Link2 size={11} />
+          {copied ? 'Copied!' : 'Share'}
+        </button>
+      </div>
+
+      {/* ── Zoom Badge ── */}
+      <div className="zoom-badge">
+        {Math.round(viewMatrix.scale * 100)}%
+      </div>
     </div>
   );
 }

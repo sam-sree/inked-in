@@ -1,108 +1,204 @@
-import React from 'react';
-import { Pencil, Eraser, Undo, Trash2, Sun, Moon, Download } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import React, { useState, useRef } from 'react';
+import { Pencil, Eraser, Undo2, Trash2, Sun, Moon, Download, ChevronUp } from 'lucide-react';
+
+const COLORS = [
+  { hex: '#ef4444', label: 'Red' },
+  { hex: '#f97316', label: 'Orange' },
+  { hex: '#eab308', label: 'Yellow' },
+  { hex: '#22c55e', label: 'Green' },
+  { hex: '#3b82f6', label: 'Blue' },
+  { hex: '#a855f7', label: 'Purple' },
+  { hex: '#ec4899', label: 'Pink' },
+  { hex: '#fafafa', label: 'White' },
+  { hex: '#09090b', label: 'Black' },
+];
 
 export function FloatingToolbar({
-  activeColor,
-  setActiveColor,
-  brushSize,
-  setBrushSize,
-  isEraser,
-  setIsEraser,
-  onUndo,
-  onClear,
-  onExport,
-  isDarkMode,
-  toggleDarkMode,
+  activeColor, setActiveColor,
+  brushSize, setBrushSize,
+  isEraser, setIsEraser,
+  onUndo, onClear, onExport,
+  isDarkMode, toggleDarkMode,
 }) {
-  const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#fafafa', '#09090b'];
+  const [expanded, setExpanded] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState(false);
+  const clearTimer = useRef(null);
 
-  const buttonClass = "p-2 rounded-xl transition-all duration-200 hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 flex items-center justify-center";
-  const activeClass = "bg-slate-200 dark:bg-slate-800 shadow-sm";
+  const handleClear = () => {
+    if (clearConfirm) {
+      onClear();
+      setClearConfirm(false);
+      clearTimer.current && clearTimeout(clearTimer.current);
+    } else {
+      setClearConfirm(true);
+      clearTimer.current = setTimeout(() => setClearConfirm(false), 2000);
+    }
+  };
+
+  const pickColor = (hex) => {
+    setActiveColor(hex);
+    setIsEraser(false);
+  };
+
+  // Brush preview circle size (scaled for display)
+  const previewSize = Math.max(6, Math.min(22, brushSize * 0.6));
 
   return (
-    <div className="fixed bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 z-50 flex flex-col md:flex-row items-center gap-2 md:gap-4 p-2 md:p-3 rounded-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg shadow-2xl border border-slate-200/50 dark:border-white/10 select-none w-[95vw] md:w-auto max-w-4xl">
-      
-      {/* Colors & Tools Row for Mobile */}
-      <div className="flex items-center justify-between w-full md:w-auto gap-2 md:gap-4">
-        
-        {/* Colors */}
-        <div className="flex gap-1.5 md:gap-2 overflow-x-auto no-scrollbar py-1 md:border-r border-slate-300 dark:border-slate-700 md:pr-4">
-          {colors.map(color => (
+    <>
+      {/* ── Main Toolbar ── */}
+      <div
+        className="animate-slide-in-bottom"
+        style={{
+          position: 'fixed',
+          bottom: '1.5rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 50,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '8px 12px',
+          borderRadius: '20px',
+          background: 'rgba(13, 13, 22, 0.88)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(28px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.7), 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)',
+          userSelect: 'none',
+          maxWidth: '96vw',
+          flexWrap: 'nowrap',
+          overflowX: 'auto',
+        }}
+      >
+        {/* Color Swatches */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', paddingRight: '10px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+          {COLORS.map(({ hex, label }) => (
             <button
-              key={color}
-              className={twMerge(
-                "w-7 h-7 md:w-8 md:h-8 rounded-full border-2 flex-shrink-0 transition-transform active:scale-95",
-                activeColor === color && !isEraser ? "border-blue-500 scale-110" : "border-slate-300 dark:border-slate-700"
+              key={hex}
+              title={label}
+              className="color-swatch"
+              style={{ backgroundColor: hex }}
+              onClick={() => pickColor(hex)}
+              data-active={activeColor === hex && !isEraser}
+              // CSS class handles active state
+              onMouseEnter={e => { if (!(activeColor === hex && !isEraser)) e.currentTarget.style.transform = 'scale(1.2)'; }}
+              onMouseLeave={e => { if (!(activeColor === hex && !isEraser)) e.currentTarget.style.transform = 'scale(1)'; }}
+            >
+              {activeColor === hex && !isEraser && (
+                <span style={{
+                  position: 'absolute', inset: '-3px',
+                  borderRadius: '50%',
+                  border: '2px solid #fff',
+                  boxShadow: `0 0 0 2px ${hex}80, 0 0 10px ${hex}60`,
+                  pointerEvents: 'none',
+                }} />
               )}
-              style={{ backgroundColor: color }}
-              onClick={() => { setActiveColor(color); setIsEraser(false); }}
-            />
+            </button>
           ))}
         </div>
 
-        {/* Theme & Export for Mobile (Moved here for better space utilization) */}
-        <div className="flex md:hidden items-center gap-1">
-          <button onClick={onExport} className={buttonClass}>
-            <Download size={18} className="text-slate-700 dark:text-slate-300" />
-          </button>
-          <button onClick={toggleDarkMode} className={buttonClass}>
-            {isDarkMode ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} className="text-slate-700" />}
-          </button>
-        </div>
-      </div>
+        {/* Separator */}
+        <div className="toolbar-separator" />
 
-      {/* Main Tools Row */}
-      <div className="flex items-center justify-between w-full md:w-auto gap-2">
-        
-        {/* Brush Size - Hidden on very small screens or made compact */}
-        <div className="hidden sm:flex items-center gap-2 px-2 md:border-r border-slate-300 dark:border-slate-700 md:pr-4">
-          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500"></div>
+        {/* Brush Size */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingRight: '10px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{
+            width: `${previewSize}px`, height: `${previewSize}px`,
+            borderRadius: '50%',
+            background: isEraser ? 'rgba(255,255,255,0.15)' : activeColor,
+            border: isEraser ? '1.5px solid rgba(255,255,255,0.3)' : 'none',
+            boxShadow: !isEraser ? `0 0 8px ${activeColor}80` : 'none',
+            transition: 'all 0.2s ease',
+            flexShrink: 0,
+            minWidth: '6px', minHeight: '6px',
+          }} />
           <input
-            type="range"
-            min="2"
-            max="40"
+            type="range" min="2" max="48"
             value={brushSize}
-            onChange={(e) => setBrushSize(parseInt(e.target.value))}
-            className="w-20 md:w-24 accent-blue-500"
+            onChange={e => setBrushSize(parseInt(e.target.value))}
+            className="brush-slider"
+            style={{ width: '72px' }}
           />
-          <div className="w-4 h-4 rounded-full bg-slate-400 dark:bg-slate-500"></div>
         </div>
 
-        {/* Action Tools */}
-        <div className="flex items-center gap-1 md:gap-2 md:border-r border-slate-300 dark:border-slate-700 md:pr-4 flex-1 justify-center md:justify-start">
-          <button
-            onClick={() => setIsEraser(false)}
-            className={twMerge(buttonClass, !isEraser && activeClass)}
-          >
-            <Pencil size={18} className="text-slate-700 dark:text-slate-300" />
-          </button>
-          <button
-            onClick={() => setIsEraser(true)}
-            className={twMerge(buttonClass, isEraser && activeClass)}
-          >
-            <Eraser size={18} className="text-slate-700 dark:text-slate-300" />
-          </button>
-          <button onClick={onUndo} className={buttonClass}>
-            <Undo size={18} className="text-slate-700 dark:text-slate-300" />
-          </button>
-          <button onClick={onClear} className={twMerge(buttonClass, "hover:text-red-500")}>
-            <Trash2 size={18} className="text-red-500" />
-          </button>
-        </div>
+        {/* Tool Buttons */}
+        <button
+          title="Pen (P)"
+          className={`toolbar-btn${!isEraser ? ' active' : ''}`}
+          onClick={() => setIsEraser(false)}
+        >
+          <Pencil size={16} />
+        </button>
+        <button
+          title="Eraser (E)"
+          className={`toolbar-btn${isEraser ? ' active' : ''}`}
+          onClick={() => setIsEraser(true)}
+        >
+          <Eraser size={16} />
+        </button>
 
-        {/* Desktop Theme & Export */}
-        <div className="hidden md:flex items-center gap-2">
-          <button onClick={onExport} className={buttonClass}>
-            <Download size={20} className="text-slate-700 dark:text-slate-300" />
-          </button>
-          <button onClick={toggleDarkMode} className={buttonClass}>
-            {isDarkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-slate-700" />}
-          </button>
-        </div>
+        <div className="toolbar-separator" />
+
+        <button title="Undo (Ctrl+Z)" className="toolbar-btn" onClick={onUndo}>
+          <Undo2 size={16} />
+        </button>
+
+        <button
+          title={clearConfirm ? 'Click again to confirm' : 'Clear Canvas'}
+          className={`toolbar-btn danger`}
+          onClick={handleClear}
+          style={clearConfirm ? {
+            background: 'rgba(239,68,68,0.18)',
+            borderColor: 'rgba(239,68,68,0.5)',
+            color: '#fca5a5',
+            animation: 'inkPulse 0.8s ease infinite',
+          } : {}}
+        >
+          <Trash2 size={16} />
+        </button>
+
+        <div className="toolbar-separator" />
+
+        <button title="Export PNG" className="toolbar-btn" onClick={onExport}>
+          <Download size={16} />
+        </button>
+
+        <button
+          title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          className="toolbar-btn"
+          onClick={toggleDarkMode}
+          style={{ color: isDarkMode ? '#fbbf24' : '#a5b4fc' }}
+        >
+          {isDarkMode
+            ? <Sun size={16} />
+            : <Moon size={16} />
+          }
+        </button>
       </div>
 
-    </div>
+      {/* ── Clear Confirm Toast ── */}
+      {clearConfirm && (
+        <div style={{
+          position: 'fixed',
+          bottom: '6.5rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 60,
+          padding: '0.5rem 1.25rem',
+          borderRadius: '100px',
+          background: 'rgba(239,68,68,0.15)',
+          border: '1px solid rgba(239,68,68,0.3)',
+          backdropFilter: 'blur(20px)',
+          color: '#fca5a5',
+          fontSize: '0.78rem',
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+          animation: 'fadeInUp 0.2s ease',
+          letterSpacing: '0.02em',
+        }}>
+          ⚠️ Click trash again to clear the board
+        </div>
+      )}
+    </>
   );
 }

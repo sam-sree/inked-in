@@ -137,9 +137,9 @@ app.get('/health', (req, res) => {
   res.send('Backend is healthy');
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
+// app.get('(.*)', (req, res) => {
+//   res.sendFile(path.join(frontendPath, 'index.html'));
+// });
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {

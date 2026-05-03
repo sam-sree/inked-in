@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 const SOCKET_SERVER_URL = import.meta.env.PROD 
@@ -8,6 +8,7 @@ const SOCKET_SERVER_URL = import.meta.env.PROD
 export const useSocket = (roomId, user) => {
   const socketRef = useRef();
   const [roomState, setRoomState] = useState({ strokes: [], users: {} });
+  const userRef = useRef(user);
   const [remoteCursors, setRemoteCursors] = useState({});
 
   useEffect(() => {
@@ -17,11 +18,16 @@ export const useSocket = (roomId, user) => {
 
     socketRef.current.emit('join-room', { roomId, user });
 
+    // Immediately add local user so online count is correct from the start
+    setRoomState(prev => ({ ...prev, users: { ...prev.users, [user.id]: user } }));
+
     socketRef.current.on('room-state', (state) => {
       const transformedUsers = {};
       Object.values(state.users || {}).forEach((u) => {
         transformedUsers[u.id] = u;
       });
+      // Ensure local user is always present
+      transformedUsers[userRef.current.id] = userRef.current;
       setRoomState({ ...state, users: transformedUsers });
     });
 
@@ -50,6 +56,10 @@ export const useSocket = (roomId, user) => {
       }));
     });
 
+    socketRef.current.on('undo', (strokes) => {
+      setRoomState((prev) => ({ ...prev, strokes: strokes ?? prev.strokes.slice(0, -1) }));
+    });
+
     socketRef.current.on('user-left', (userId) => {
       setRoomState((prev) => {
         const newUsers = { ...prev.users };
@@ -68,26 +78,26 @@ export const useSocket = (roomId, user) => {
     };
   }, [roomId, user.id]);
 
-  const drawStroke = (stroke) => {
-    socketRef.current.emit('draw-stroke', stroke);
+  const drawStroke = useCallback((stroke) => {
+    socketRef.current?.emit('draw-stroke', stroke);
     setRoomState((prev) => ({
       ...prev,
       strokes: [...prev.strokes, stroke],
     }));
-  };
+  }, []);
 
-  const moveCursor = (position) => {
+  const moveCursor = useCallback((position) => {
     socketRef.current?.emit('cursor-move', position);
-  };
+  }, []);
 
-  const undo = () => {
-    socketRef.current.emit('undo');
-  };
+  const undo = useCallback(() => {
+    socketRef.current?.emit('undo');
+  }, []);
 
-  const clearCanvas = () => {
-    socketRef.current.emit('clear-canvas');
+  const clearCanvas = useCallback(() => {
+    socketRef.current?.emit('clear-canvas');
     setRoomState((prev) => ({ ...prev, strokes: [] }));
-  };
+  }, []);
 
   return {
     socket: socketRef.current,
