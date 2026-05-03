@@ -4,7 +4,7 @@ import { Canvas } from './components/Whiteboard/Canvas';
 import { FloatingToolbar } from './components/Toolbar/FloatingToolbar';
 import { CursorOverlay } from './components/Whiteboard/CursorOverlay';
 import { useSocket } from './hooks/useSocket';
-import { Link2 } from 'lucide-react';
+import { Link2, MessageSquare, Send, X } from 'lucide-react';
 
 // Generate distinct color for user cursor
 const stringToColor = (str) => {
@@ -36,16 +36,8 @@ function App() {
 
   const [userId] = useState(generateUserId);
   const [userName, setUserName] = useState(() => getOrGenerateUserName(roomId));
-  const [showJoinScreen, setShowJoinScreen] = useState(!userName && !isHost);
+  const [showJoinScreen, setShowJoinScreen] = useState(!userName);
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (isHost && !userName) {
-      const name = 'Host';
-      setUserName(name);
-      localStorage.setItem(`inkedin-userName-${roomId}`, name);
-    }
-  }, [isHost, roomId, userName]);
 
   const [activeColor, setActiveColor] = useState('#fafafa');
   const [brushSize, setBrushSize] = useState(8);
@@ -60,8 +52,30 @@ function App() {
 
   const userConfig = { id: userId, name: userName, color: stringToColor(userId + userName) };
 
-  const { roomState, remoteCursors, drawingUsers, drawStroke, moveCursor, setDrawingStatus, undo, clearCanvas } = useSocket(roomId || 'default', userConfig);
+  const { roomState, remoteCursors, drawingUsers, messages, drawStroke, moveCursor, setDrawingStatus, sendChatMessage, undo, clearCanvas } = useSocket(roomId || 'default', userConfig);
   const [showUsersPopup, setShowUsersPopup] = useState(false);
+  
+  // Chat state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [chatInput, setChatInput] = useState('');
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    if (isChatOpen) {
+      setUnreadCount(0);
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [isChatOpen, messages]);
+
+  useEffect(() => {
+    if (!isChatOpen && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.userId !== userId) {
+        setUnreadCount(prev => prev + 1);
+      }
+    }
+  }, [messages]);
 
   const [viewMatrix, setViewMatrix] = useState({ x: 0, y: 0, scale: 1 });
   const viewMatrixRef = useRef(viewMatrix);
@@ -357,6 +371,141 @@ function App() {
       {/* ── Zoom Badge ── */}
       <div className="zoom-badge">
         {Math.round(viewMatrix.scale * 100)}%
+      </div>
+      {/* ── Chat Toggle Button ── */}
+      <button
+        onClick={() => setIsChatOpen(prev => !prev)}
+        style={{
+          position: 'fixed', bottom: '1.25rem', right: '1.25rem', zIndex: 50,
+          width: '50px', height: '50px', borderRadius: '50%',
+          background: 'rgba(13,13,22,0.82)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#e8e8f0', cursor: 'pointer',
+          transition: 'transform 0.2s ease',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+      >
+        <MessageSquare size={22} />
+        {unreadCount > 0 && (
+          <div style={{
+            position: 'absolute', top: '10px', right: '10px',
+            width: '10px', height: '10px', borderRadius: '50%',
+            background: '#ef4444',
+            boxShadow: '0 0 6px rgba(239,68,68,0.8)'
+          }} />
+        )}
+      </button>
+
+      {/* ── Chat Window ── */}
+      <div style={{
+        position: 'fixed', top: '1.25rem', bottom: '5rem', right: '1.25rem', zIndex: 49,
+        width: '320px', borderRadius: '16px',
+        background: 'rgba(13,13,22,0.88)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        backdropFilter: 'blur(25px)',
+        boxShadow: '-8px 8px 32px rgba(0,0,0,0.5)',
+        display: 'flex', flexDirection: 'column',
+        transform: isChatOpen ? 'translateX(0)' : 'translateX(120%)',
+        opacity: isChatOpen ? 1 : 0,
+        pointerEvents: isChatOpen ? 'auto' : 'none',
+        transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        overflow: 'hidden'
+      }}>
+        {/* Chat Header */}
+        <div style={{
+          padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e8e8f0', fontFamily: "'Space Grotesk', sans-serif" }}>
+            Room Chat
+          </span>
+          <button 
+            onClick={() => setIsChatOpen(false)}
+            style={{ background: 'transparent', border: 'none', color: '#8585a8', cursor: 'pointer', padding: '4px' }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Chat Messages */}
+        <div style={{
+          flex: 1, padding: '1rem', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', gap: '12px'
+        }}>
+          {messages.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#8585a8', fontSize: '0.8rem', marginTop: 'auto', marginBottom: 'auto' }}>
+              No messages yet.<br/>Say hi!
+            </div>
+          ) : (
+            messages.map((msg) => {
+              const isMe = msg.userId === userId;
+              return (
+                <div key={msg.id} style={{
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: isMe ? 'flex-end' : 'flex-start'
+                }}>
+                  <span style={{ fontSize: '0.65rem', color: '#8585a8', marginBottom: '4px', marginLeft: isMe ? 0 : '8px', marginRight: isMe ? '8px' : 0 }}>
+                    {isMe ? 'You' : msg.userName}
+                  </span>
+                  <div style={{
+                    padding: '8px 12px', borderRadius: '12px',
+                    background: isMe ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${isMe ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)'}`,
+                    color: '#e8e8f0', fontSize: '0.85rem',
+                    maxWidth: '85%', wordBreak: 'break-word',
+                    borderBottomRightRadius: isMe ? '2px' : '12px',
+                    borderBottomLeftRadius: isMe ? '12px' : '2px',
+                  }}>
+                    {msg.text}
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Chat Input */}
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (chatInput.trim()) {
+              sendChatMessage(chatInput);
+              setChatInput('');
+            }
+          }}
+          style={{
+            padding: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)',
+            display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.2)'
+          }}
+        >
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            placeholder="Type a message..."
+            style={{
+              flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '8px', padding: '8px 12px', color: '#e8e8f0', fontSize: '0.85rem', outline: 'none'
+            }}
+          />
+          <button 
+            type="submit"
+            disabled={!chatInput.trim()}
+            style={{
+              background: chatInput.trim() ? '#6366f1' : 'rgba(255,255,255,0.05)',
+              border: 'none', borderRadius: '8px', padding: '8px',
+              color: chatInput.trim() ? '#fff' : '#8585a8', cursor: chatInput.trim() ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s'
+            }}
+          >
+            <Send size={16} />
+          </button>
+        </form>
       </div>
     </div>
   );

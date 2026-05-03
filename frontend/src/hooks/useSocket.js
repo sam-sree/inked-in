@@ -11,6 +11,7 @@ export const useSocket = (roomId, user) => {
   const userRef = useRef(user);
   const [remoteCursors, setRemoteCursors] = useState({});
   const [drawingUsers, setDrawingUsers] = useState({});
+  const [messages, setMessages] = useState([]);
 
   useEffect(() => {
     socketRef.current = io(SOCKET_SERVER_URL, {
@@ -68,6 +69,10 @@ export const useSocket = (roomId, user) => {
       }));
     });
 
+    socketRef.current.on('chat-message', (message) => {
+      setMessages((prev) => [...prev, message]);
+    });
+
     socketRef.current.on('user-left', (userId) => {
       setRoomState((prev) => {
         const newUsers = { ...prev.users };
@@ -107,6 +112,12 @@ export const useSocket = (roomId, user) => {
     }));
   }, []);
 
+  const sendChatMessage = useCallback((text) => {
+    if (text.trim()) {
+      socketRef.current?.emit('chat-message', text.trim());
+    }
+  }, []);
+
   const undo = useCallback(() => {
     socketRef.current?.emit('undo');
   }, []);
@@ -121,9 +132,11 @@ export const useSocket = (roomId, user) => {
     roomState,
     remoteCursors,
     drawingUsers,
+    messages,
     drawStroke,
     moveCursor,
     setDrawingStatus,
+    sendChatMessage,
     undo,
     clearCanvas,
   };

@@ -87,6 +87,26 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('chat-message', (text) => {
+    const roomId = socket.roomId;
+    if (!roomId) return;
+    
+    const room = rooms.get(roomId);
+    if (!room || !room.users[socket.id]) return;
+
+    const user = room.users[socket.id];
+    const message = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      userId: user.id,
+      userName: user.name,
+      userColor: user.color,
+      text,
+      timestamp: Date.now()
+    };
+
+    io.to(roomId).emit('chat-message', message);
+  });
+
   socket.on('undo', () => {
     const roomId = socket.roomId;
     if (!roomId) return;
