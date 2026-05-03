@@ -1,8 +1,6 @@
 # 🖋️ InkedIn
 
-<p align="center">
-  <img src="https://via.placeholder.com/1200x600.png?text=InkedIn+Collaborative+Whiteboard" alt="InkedIn Preview" />
-</p>
+
 
 <p align="center">
   <b>A premium, real-time collaborative whiteboard for seamless visual thinking.</b>
