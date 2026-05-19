@@ -373,20 +373,22 @@ function App() {
         {Math.round(viewMatrix.scale * 100)}%
       </div>
       {/* ── Chat Toggle Button ── */}
-      <button
-        onClick={() => setIsChatOpen(prev => !prev)}
-        className="chat-toggle-btn"
-      >
-        <MessageSquare size={22} />
-        {unreadCount > 0 && (
-          <div style={{
-            position: 'absolute', top: '10px', right: '10px',
-            width: '10px', height: '10px', borderRadius: '50%',
-            background: '#ef4444',
-            boxShadow: '0 0 6px rgba(239,68,68,0.8)'
-          }} />
-        )}
-      </button>
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(prev => !prev)}
+          className="chat-toggle-btn"
+        >
+          <MessageSquare size={22} />
+          {unreadCount > 0 && (
+            <div style={{
+              position: 'absolute', top: '10px', right: '10px',
+              width: '10px', height: '10px', borderRadius: '50%',
+              background: '#ef4444',
+              boxShadow: '0 0 6px rgba(239,68,68,0.8)'
+            }} />
+          )}
+        </button>
+      )}
 
       {/* ── Chat Window ── */}
       <div className={`chat-window ${isChatOpen ? 'open' : ''}`} style={{ overflow: 'hidden' }}>
