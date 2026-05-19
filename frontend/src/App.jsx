@@ -375,19 +375,7 @@ function App() {
       {/* ── Chat Toggle Button ── */}
       <button
         onClick={() => setIsChatOpen(prev => !prev)}
-        style={{
-          position: 'fixed', bottom: '1.25rem', right: '1.25rem', zIndex: 50,
-          width: '50px', height: '50px', borderRadius: '50%',
-          background: 'rgba(13,13,22,0.82)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          backdropFilter: 'blur(20px)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#e8e8f0', cursor: 'pointer',
-          transition: 'transform 0.2s ease',
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        className="chat-toggle-btn"
       >
         <MessageSquare size={22} />
         {unreadCount > 0 && (
@@ -401,20 +389,7 @@ function App() {
       </button>
 
       {/* ── Chat Window ── */}
-      <div style={{
-        position: 'fixed', top: '1.25rem', bottom: '5rem', right: '1.25rem', zIndex: 49,
-        width: '320px', borderRadius: '16px',
-        background: 'rgba(13,13,22,0.88)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        backdropFilter: 'blur(25px)',
-        boxShadow: '-8px 8px 32px rgba(0,0,0,0.5)',
-        display: 'flex', flexDirection: 'column',
-        transform: isChatOpen ? 'translateX(0)' : 'translateX(120%)',
-        opacity: isChatOpen ? 1 : 0,
-        pointerEvents: isChatOpen ? 'auto' : 'none',
-        transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        overflow: 'hidden'
-      }}>
+      <div className={`chat-window ${isChatOpen ? 'open' : ''}`} style={{ overflow: 'hidden' }}>
         {/* Chat Header */}
         <div style={{
           padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)',
