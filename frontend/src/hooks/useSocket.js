@@ -3,12 +3,17 @@ import { io } from 'socket.io-client';
 
 const SOCKET_SERVER_URL = import.meta.env.PROD 
   ? window.location.origin 
-  : 'http://localhost:3001';
+  : `http://${window.location.hostname}:3001`;
 
 export const useSocket = (roomId, user) => {
   const socketRef = useRef();
   const [roomState, setRoomState] = useState({ strokes: [], users: {} });
   const userRef = useRef(user);
+  
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   const [remoteCursors, setRemoteCursors] = useState({});
   const [drawingUsers, setDrawingUsers] = useState({});
   const [messages, setMessages] = useState([]);
@@ -126,6 +131,12 @@ export const useSocket = (roomId, user) => {
     socketRef.current?.emit('clear-canvas');
     setRoomState((prev) => ({ ...prev, strokes: [] }));
   }, []);
+
+  useEffect(() => {
+    if (socketRef.current && user.name) {
+      socketRef.current.emit('update-user', user);
+    }
+  }, [user.name, user.color]);
 
   return {
     socket: socketRef.current,

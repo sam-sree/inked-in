@@ -1,7 +1,5 @@
 # 🖋️ InkedIn
 
-
-
 <p align="center">
   <b>A premium, real-time collaborative whiteboard for seamless visual thinking.</b>
 </p>
@@ -29,6 +27,9 @@ Built with a sleek **glassmorphic interface** and powered by low-latency communi
 
 - ♾️ **Infinite Canvas**  
   Seamless panning and zooming with a clean dot-grid system.
+
+- 📱 **Mobile Multi-Touch Support**  
+  Pinch out/in to zoom and drag two fingers to pan on touch devices with no accidental pen strokes.
 
 - 👥 **Presence & Status**  
   Know who’s online with real-time *“drawing…”* indicators.
@@ -115,17 +116,21 @@ To test real-time collaboration:
 
 ## 🎮 Usage
 
-| Action        | Control |
-|--------------|--------|
-| Draw         | Left-click + drag |
-| Pan          | `Shift` + drag OR Middle-click + drag |
-| Zoom         | Scroll / trackpad pinch |
-| Chat         | Bottom-right message icon |
-| Undo         | Toolbar undo button |
-| Clear Canvas | Trash icon (with confirmation) |
+| Action        | Control (Mouse) | Control (Touch/Mobile) |
+|--------------|-----------------|------------------------|
+| **Draw**         | Left-click + drag | Single finger drag |
+| **Pan Canvas**   | `Shift` + drag OR Middle-click + drag | Two-finger drag |
+| **Zoom Canvas**  | Mouse wheel scroll / Trackpad pinch | Two-finger pinch out / in |
+| **Chat**         | Bottom-right message icon | Bottom-right message icon |
+| **Undo**         | Toolbar undo button | Toolbar undo button |
+| **Clear Canvas** | Trash icon (with confirmation) | Trash icon (with confirmation) |
 
 ---
 
+## 📄 License
+This project is open-source and available under the MIT License.
+
+---
 
 <p align="center">
   built for ideas that refuse to stay still ✨

@@ -20,6 +20,25 @@ export function Canvas({
   const lastPositionRef = useRef({ x: 0, y: 0 });
   const currentStrokeRef = useRef([]);
 
+  const activePointersRef = useRef([]);
+  const initialDistanceRef = useRef(0);
+  const initialCenterRef = useRef({ x: 0, y: 0 });
+  const initialViewMatrixRef = useRef({ x: 0, y: 0, scale: 1 });
+  const isMultiTouchRef = useRef(false);
+
+  const getDistance = (p1, p2) => {
+    const dx = p1.clientX - p2.clientX;
+    const dy = p1.clientY - p2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const getCenter = (p1, p2) => {
+    return {
+      x: (p1.clientX + p2.clientX) / 2,
+      y: (p1.clientY + p2.clientY) / 2
+    };
+  };
+
   // Resize both canvases to window size
   useEffect(() => {
     const handleResize = () => {
@@ -127,29 +146,100 @@ export function Canvas({
   };
 
   const handlePointerDown = (e) => {
-    // Check for panning (middle click or space+left click or right click)
-    if (e.button === 1 || e.button === 2 || (e.button === 0 && e.shiftKey)) {
+    // Add pointer to active tracking
+    activePointersRef.current.push({
+      pointerId: e.pointerId,
+      clientX: e.clientX,
+      clientY: e.clientY
+    });
+
+    // Check for multi-touch (pinch/zoom)
+    if (activePointersRef.current.length >= 2) {
+      isMultiTouchRef.current = true;
+      isPanningRef.current = true;
+
+      // Cancel current drawing if active
+      if (isDrawingRef.current) {
+        isDrawingRef.current = false;
+        if (onDrawingChange) onDrawingChange(false);
+        currentStrokeRef.current = [];
+        drawForeground();
+      }
+
+      // Initialize pinch state
+      const p1 = activePointersRef.current[0];
+      const p2 = activePointersRef.current[1];
+      initialDistanceRef.current = getDistance(p1, p2);
+      initialCenterRef.current = getCenter(p1, p2);
+      initialViewMatrixRef.current = { ...viewMatrix };
+      return;
+    }
+
+    // Check for mouse-based panning (middle click or right click or space+left click)
+    if (e.pointerType === 'mouse' && (e.button === 1 || e.button === 2 || (e.button === 0 && e.shiftKey))) {
       isPanningRef.current = true;
       lastPositionRef.current = { x: e.clientX, y: e.clientY };
       return;
     }
 
-    if (e.button !== 0) return;
+    // Only allow drawing with the primary pointer button (0)
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    // Do not start drawing if we are already in multi-touch mode
+    if (isMultiTouchRef.current) return;
 
     isDrawingRef.current = true;
     if (onDrawingChange) onDrawingChange(true);
 
     const worldPos = screenToWorld(e.clientX, e.clientY);
-    
     const point = { x: worldPos.x, y: worldPos.y, pressure: e.pressure || 0.5 };
     currentStrokeRef.current = [point];
     drawForeground();
   };
 
   const handlePointerMove = (e) => {
-    const worldPos = screenToWorld(e.clientX, e.clientY);
+    // Update active pointer position
+    const idx = activePointersRef.current.findIndex(p => p.pointerId === e.pointerId);
+    if (idx !== -1) {
+      activePointersRef.current[idx] = {
+        pointerId: e.pointerId,
+        clientX: e.clientX,
+        clientY: e.clientY
+      };
+    }
 
-    if (isPanningRef.current) {
+    // Handle pinch-to-zoom and two-finger panning
+    if (activePointersRef.current.length >= 2) {
+      const p1 = activePointersRef.current[0];
+      const p2 = activePointersRef.current[1];
+      
+      const dist = getDistance(p1, p2);
+      const center = getCenter(p1, p2);
+
+      if (initialDistanceRef.current > 0) {
+        const scaleChange = dist / initialDistanceRef.current;
+        let newScale = initialViewMatrixRef.current.scale * scaleChange;
+        newScale = Math.min(Math.max(newScale, 0.1), 10);
+
+        // Zoom around the initial center of the two fingers
+        const worldX = (initialCenterRef.current.x - initialViewMatrixRef.current.x) / initialViewMatrixRef.current.scale;
+        const worldY = (initialCenterRef.current.y - initialViewMatrixRef.current.y) / initialViewMatrixRef.current.scale;
+
+        // Apply two-finger translation (panning)
+        const dx = center.x - initialCenterRef.current.x;
+        const dy = center.y - initialCenterRef.current.y;
+
+        setViewMatrix({
+          scale: newScale,
+          x: initialCenterRef.current.x + dx - worldX * newScale,
+          y: initialCenterRef.current.y + dy - worldY * newScale
+        });
+      }
+      return;
+    }
+
+    // Handle single-pointer mouse/pen panning
+    if (isPanningRef.current && !isMultiTouchRef.current) {
       const dx = e.clientX - lastPositionRef.current.x;
       const dy = e.clientY - lastPositionRef.current.y;
       
@@ -163,8 +253,10 @@ export function Canvas({
       return;
     }
 
-    if (!isDrawingRef.current) return;
+    // Handle drawing
+    if (!isDrawingRef.current || isMultiTouchRef.current) return;
 
+    const worldPos = screenToWorld(e.clientX, e.clientY);
     currentStrokeRef.current.push({ x: worldPos.x, y: worldPos.y, pressure: e.pressure || 0.5 });
     
     requestAnimationFrame(() => {
@@ -172,8 +264,22 @@ export function Canvas({
     });
   };
 
-  const handlePointerUp = () => {
-    isPanningRef.current = false;
+  const handlePointerUp = (e) => {
+    // Remove pointer from tracking list
+    activePointersRef.current = activePointersRef.current.filter(p => p.pointerId !== e.pointerId);
+
+    // If there are no more fingers on the screen, clear all guest states
+    if (activePointersRef.current.length === 0) {
+      isPanningRef.current = false;
+      isMultiTouchRef.current = false;
+      initialDistanceRef.current = 0;
+    }
+
+    // If we transitioned from two fingers to one, save the remaining finger's coords to prevent screen jump
+    if (activePointersRef.current.length === 1 && isMultiTouchRef.current) {
+      const remaining = activePointersRef.current[0];
+      lastPositionRef.current = { x: remaining.clientX, y: remaining.clientY };
+    }
 
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;

@@ -34,7 +34,7 @@ io.on('connection', (socket) => {
     }
     
     const room = rooms.get(roomId);
-    room.users[socket.id] = { id: socket.id, ...user };
+    room.users[socket.id] = { socketId: socket.id, ...user };
 
     // Send current state to the joined user
     socket.emit('room-state', {
@@ -47,6 +47,30 @@ io.on('connection', (socket) => {
     
     // Store roomId in socket for easy access on disconnect
     socket.roomId = roomId;
+  });
+
+  socket.on('update-user', (updatedUser) => {
+    const roomId = socket.roomId;
+    if (!roomId) return;
+    
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    // Update user details while preserving their socket connection mapping
+    room.users[socket.id] = {
+      ...room.users[socket.id],
+      ...updatedUser,
+      socketId: socket.id
+    };
+
+    // Notify others of the update
+    socket.to(roomId).emit('user-joined', room.users[socket.id]);
+
+    // Broadcast updated state to all users in the room
+    io.to(roomId).emit('room-state', {
+      strokes: room.strokes,
+      users: room.users
+    });
   });
 
   socket.on('draw-stroke', (stroke) => {
